@@ -1,0 +1,75 @@
+
+**
+** BUGS file for the Haskell binding to net-snmp
+**
+
+The binding is new and largely untested; there are sure to be bugs and
+many omissions.
+
+** 
+** SECURITY CONSIDERATIONS
+** 
+
+This code has not undergone any security review, and is very immature.
+It would be inappropriate to use this binding where security is a
+priority, without taking appropriate measures.
+
+** 
+** MISSING FEATURES
+** 
+
+This binding only supports a subset of the NetSNMP library's
+"single-session" api.  Only synchronous queries are supported, and only
+the get, next, and walk operations.
+
+No support for bulk get requests.
+
+No support (and none planned) for snmp traps.
+
+Many SNMP / ASN.1 data types are unsupported as yet.
+
+This binding only addresses use of the library for an snmp client.  No
+effort is made to support snmp agent or proxy operations.
+
+No support for snmpv3; currently only snmpv1 and snmpv2c with admittedly
+insecure SNMP community strings.  The documentation for the thread-safe API
+in the net-snmp C library suggests that the snmpv3 support is probably
+not thread-safe.
+
+This binding doesn't do anything with the library's log handling, and
+the library's default action is to spam stderr.  There should at least
+be a way to prevent this, and it should possibly suppress the logs by
+default.
+
+This code should be publicly hosted, perhaps on code.haskell.org.  It
+should use a public trac.
+
+** 
+** BROKENNESS
+** 
+
+Looking up OIDs by name doesn't seem to work yet.  Once it's fixed
+snmpwalk probably needs to be fixed as well.  It uses `isPrefixOf` to
+determine when the walk is over, which won't work if the original
+oid isn't dotted-decimal.
+
+There are too many things called 'session' in the library, and in the
+binding:
+-  the C struct snmp_session.  The 'single session' examples use *3* of
+   these, with subtly different purposes, never fully explained.
+-  data SnmpSession, the binding's representation of 'struct snmp_session'
+-  data Session, the binding's abstract session container, holding
+   the above and managing C memory (de)allocation
+
+snmpWalk doesn't check for cyclical responses from an agent; reportedly
+there are agents with this misfeature.  Currently if it happens snmpWalk
+will happily follow the cycle until it runs out of memory or stack.
+
+I don't know how to intelligently set the alignment parameter for data
+types representing C structs in their Storable instances.  I'm using 16
+bytes as a (hopefully) conservative setting, but isn't there a way to
+detect and mimic what C uses?
+
+The binding is currently one monolithic .hsc file.  It should probably
+be organized into a few modules.
+

@@ -1,0 +1,27 @@
+
+The (Haskell) NetSNMP package is a binding for a subset of the libsnmp
+api provided by the NetSNMP project.  It is initially being developed
+against NetSNMP version 5.4.1, but probably works with most or all 5.*
+versions.
+
+Currently supported protocol versions:
+  SNMPv1  -- original SNMP
+  SNMPv2c -- v2 protocol with old community-based security
+
+Not yet supported:
+  SNMPv3  -- v2 protocol plus new v3 party-based security
+
+Other versions are not supported by the underlying library, and are
+unlikely to ever be supported by this package.
+  SNMPsec -- first attempt to add strong security to SNMPv1
+  SNMPv2p -- initial SNMPv2, with v2 party-based security
+  SNMPv2u -- v2 protocol with user-based security
+  SNMPv2* -- proprietary hybrid variant of v2c and v2p
+
+This binding requires that net-snmp be built without
+NETSNMP_DISABLE_SNMPV1 or NETSNMP_DISABLE_SNMPV2C.  I'd love to support
+those options, since they may encourage better security, but I won't be able
+to prioritize this in the forseeable future.
+
+See also: BUGS
+

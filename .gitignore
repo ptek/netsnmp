@@ -1,0 +1,22 @@
+syntax: glob
+.DS_Store
+.swp
+.ghci
+._*
+*~
+**~
+*\#*
+**\#*
+TAGS
+
+build
+dist
+cabal-dev
+*.o
+*.hi
+*.chi
+*.chs.h
+
+bin
+tmp
+etc
