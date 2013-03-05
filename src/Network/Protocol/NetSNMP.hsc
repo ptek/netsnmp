@@ -1,5 +1,5 @@
 
-{-# LANGUAGE CPP, ForeignFunctionInterface, EmptyDataDecls #-}
+{-# LANGUAGE CPP, DoAndIfThenElse, ForeignFunctionInterface, EmptyDataDecls #-}
 
 ----------------------------------------------------------------------
 -- |
@@ -24,7 +24,7 @@ module Network.Protocol.NetSNMP (
   -- ** Library Initialization
   initialize,
   -- ** Queries
-  snmpGet, snmpNext, snmpWalk,
+  snmpGet, snmpNext, snmpWalk, snmpBulkWalk,
   -- ** Miscellany
   showASNValue,
   )
@@ -314,14 +314,14 @@ snmpNext version hostname community oid =
 --     through all objects underneath that OID in the mib tree.
 --     On failure, returns a descriptive error message.
 --
--- The current implementation uses a series of next operations, but an
--- implementation using bulk requests would be more efficient.
+-- This implementation uses a series of next operations and is not very
+-- ressource friendly. Consider using snmpBulkWalk for better performance
 --
 -- Examples:
 --
--- * snmpWalk \"localhost\" \"public\" \".1.3.6.1.2.1.1\"
+-- * snmpWalk snmp_version_2c \"localhost\" \"public\" \".1.3.6.1.2.1.1\"
 --
--- * snmpWalk \"tcp:localhost:5161\" \"mypassword\" \".1.3.6.1.2.1.1\"
+-- * snmpWalk snmp_version_2c \"tcp:localhost:5161\" \"mypassword\" \".1.3.6.1.2.1.1\"
 snmpWalk
   :: SnmpVersion -- ^'snmp_version_1' or 'snmp_version_2c'
   -> Hostname    -- ^IP or hostname of the agent to be queried.  May have
@@ -347,6 +347,62 @@ snmpWalk version hostname community walkoid =
             vs <- go nextoid next
             return (v:vs)
           | otherwise -> return [] -- throwT "end of walk" -- return []
+
+
+-- |Same as snmpWalk but implemented with bulk requests
+--
+-- Examples:
+--
+-- * snmpBulkWalk \"localhost\" \"public\" \".1.3.6.1.2.1.1\"
+--
+-- * snmpBulkWalk \"tcp:localhost:5161\" \"mypassword\" \".1.3.6.1.2.1.1\"
+snmpBulkWalk 
+  :: Hostname    -- ^IP or hostname of the agent to be queried.  May have
+                 --     prefix of @tcp:@ or suffix of @:port@
+  -> Community   -- ^SNMP community (password)
+  -> String      -- ^OID to be queried
+  -> IO (Either String [SnmpResult])
+snmpBulkWalk hostname community walkoid =
+    withCString hostname  $ \cshost  ->
+    withCString community $ \cscomm  ->
+    alloca                $ \session ->
+    runTrouble $ bracketT
+      (readyCommunitySession snmp_version_2c cshost cscomm session)
+      closeSession
+      (bulkWalk walkoid walkoid)
+  where
+    bulkWalk :: String -> String -> Session -> Trouble [SnmpResult]
+    bulkWalk rootoid startoid session = do
+      vals <- filter (\r -> rootoid `isPrefixOf` (oid r)) <$> mkSnmpBulkGet 0 50 startoid session
+      case vals of
+        [] -> return []
+        rs -> (vals ++) <$> bulkWalk rootoid (oid (last rs)) session
+  
+mkSnmpBulkGet :: CLong -> CLong -> String -> Session -> Trouble [SnmpResult]
+mkSnmpBulkGet non_repeaters max_repetitions oid session =
+  allocaT $ \response_ptr -> do
+  allocaArrayT (fromIntegral max_oid_len) $ \oids -> do
+  let version = getVersion session
+  let sessp = getSessp session
+  let sptr = getSptr session
+  pdu_req <- buildPDU snmp_msg_getbulk oid oids version
+  pokePDUNonRepeaters pdu_req non_repeaters
+  pokePDUMaxRepetitions pdu_req max_repetitions
+  pokeT response_ptr nullPtr
+  handleT
+    (\s -> do
+      pdu_resp <- peekT response_ptr
+      unless (pdu_resp == nullPtr) $ t_snmp_free_pdu pdu_resp
+      throwT s)
+    (do
+      t_snmp_sess_synch_response sessp sptr pdu_req response_ptr
+      pdu_resp <- peekT response_ptr
+      errstat <- peekPDUErrstat pdu_resp
+      when (errstat /= snmp_err_noerror) (throwT "response PDU error")
+      rawvars <- peekPDUVariables pdu_resp
+      vars <- extractVars rawvars
+      unless (pdu_resp == nullPtr) $ t_snmp_free_pdu pdu_resp
+      return vars)  
 
 -- get or getnext, using session info from a 'data Session' and
 -- the supplied oid
@@ -583,6 +639,12 @@ pokePDUVersion p v = hoistT $ #{poke struct snmp_pdu , version} p v
 pokePDUCommand :: Ptr SnmpPDU -> CInt -> Trouble ()
 pokePDUCommand p t = hoistT $ #{poke struct snmp_pdu , command} p t
 
+pokePDUNonRepeaters :: Ptr SnmpPDU -> CLong -> Trouble ()
+pokePDUNonRepeaters p n = hoistT $ #{poke struct snmp_pdu , non_repeaters} p n
+
+pokePDUMaxRepetitions :: Ptr SnmpPDU -> CLong -> Trouble ()
+pokePDUMaxRepetitions p r = hoistT $ #{poke struct snmp_pdu , max_repetitions} p r
+
 --
 -- The C library layer
 --
@@ -678,15 +740,15 @@ t_snmp_sess_synch_response :: Ptr SnmpSession -> Ptr SnmpSession
 t_snmp_sess_synch_response sessp sptr pdu_req response_ptr = Trouble $ do
   success <- c_snmp_sess_synch_response sessp pdu_req response_ptr
   -- snmpSessError was giving bus errors on x86_64
-  -- if (success == snmp_stat_success)
-  --   then return (Right ())
-  --   else Left <$> snmpSessError sptr
-  return $ case () of
-    _ | success == snmp_stat_success -> Right ()
-      | success == snmp_stat_error   -> Left "snmp_sess_synch_response error"
-      | success == snmp_stat_timeout -> Left "snmp_sess_synch_response timeout"
-      | otherwise -> Left
-          ("snmp_sess_synch_response unknown error code " ++ show success)
+  if (success == snmp_stat_success)
+    then return (Right ())
+    else Left <$> snmpError sptr
+  -- return $ case () of
+  --   _ | success == snmp_stat_success -> Right ()
+  --     | success == snmp_stat_error   -> Left "snmp_sess_synch_response error"
+  --     | success == snmp_stat_timeout -> Left "snmp_sess_synch_response timeout"
+  --     | otherwise -> Left
+  --         ("snmp_sess_synch_response unknown error code " ++ show success)
 
 -- Deallocate PDU struct
 foreign import ccall unsafe "net-snmp/net-snmp-includes.h snmp_free_pdu"
