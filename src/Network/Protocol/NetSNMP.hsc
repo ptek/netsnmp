@@ -378,16 +378,35 @@ snmpBulkWalk hostname community walkoid =
         [] -> return []
         rs -> (vals ++) <$> bulkWalk rootoid (oid (last rs)) session
   
+-- getbulk, using session info from a 'data Session' and
+-- the supplied oid
+-- It is the caller's obligation to ensure the session's validity.  
 mkSnmpBulkGet :: CLong -> CLong -> String -> Session -> Trouble [SnmpResult]
 mkSnmpBulkGet non_repeaters max_repetitions oid session =
-  allocaT $ \response_ptr -> do
   allocaArrayT (fromIntegral max_oid_len) $ \oids -> do
   let version = getVersion session
-  let sessp = getSessp session
-  let sptr = getSptr session
   pdu_req <- buildPDU snmp_msg_getbulk oid oids version
   pokePDUNonRepeaters pdu_req non_repeaters
   pokePDUMaxRepetitions pdu_req max_repetitions
+  dispatchSnmpReq pdu_req session
+
+-- get or getnext, using session info from a 'data Session' and
+-- the supplied oid
+-- It is the caller's obligation to ensure the session's validity.
+mkSnmpGet :: SnmpPDUType -> Session -> String -> Trouble SnmpResult
+mkSnmpGet pdutype session oid = do
+  res <- (allocaArrayT (fromIntegral max_oid_len) $ \oids -> do
+         let version = getVersion session
+         pdu_req <- buildPDU pdutype oid oids version
+         dispatchSnmpReq pdu_req session)
+  if (res == []) then throwT ("Could not get the snmp value at " ++ oid)
+  else return $ head res
+
+dispatchSnmpReq :: Ptr SnmpPDU -> Session -> Trouble [SnmpResult]
+dispatchSnmpReq pdu_req session = do
+  allocaT $ \response_ptr -> do
+  let sessp = getSessp session
+  let sptr = getSptr session
   pokeT response_ptr nullPtr
   handleT
     (\s -> do
@@ -403,33 +422,6 @@ mkSnmpBulkGet non_repeaters max_repetitions oid session =
       vars <- extractVars rawvars
       unless (pdu_resp == nullPtr) $ t_snmp_free_pdu pdu_resp
       return vars)  
-
--- get or getnext, using session info from a 'data Session' and
--- the supplied oid
--- It is the caller's obligation to ensure the session's validity.
-mkSnmpGet :: SnmpPDUType -> Session -> String -> Trouble SnmpResult
-mkSnmpGet pdutype session oid =
-  allocaT $ \response_ptr -> do
-  allocaArrayT (fromIntegral max_oid_len) $ \oids -> do
-  let version = getVersion session
-  let sessp = getSessp session
-  let sptr = getSptr session
-  pdu_req <- buildPDU pdutype oid oids version
-  pokeT response_ptr nullPtr
-  handleT
-    (\s -> do
-      pdu_resp <- peekT response_ptr
-      unless (pdu_resp == nullPtr) $ t_snmp_free_pdu pdu_resp
-      throwT s)
-    (do
-      t_snmp_sess_synch_response sessp sptr pdu_req response_ptr
-      pdu_resp <- peekT response_ptr
-      errstat <- peekPDUErrstat pdu_resp
-      when (errstat /= snmp_err_noerror) (throwT "response PDU error")
-      rawvars <- peekPDUVariables pdu_resp
-      vars <- extractVar rawvars
-      unless (pdu_resp == nullPtr) $ t_snmp_free_pdu pdu_resp
-      return vars)
 
 -- caller is obliged to ensure rv is valid and non-null
 vlist2oid :: Ptr CVarList -> Trouble String
