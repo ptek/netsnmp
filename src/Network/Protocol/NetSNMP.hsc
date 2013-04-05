@@ -373,10 +373,17 @@ snmpBulkWalk hostname community walkoid =
   where
     bulkWalk :: String -> String -> Session -> Trouble [SnmpResult]
     bulkWalk rootoid startoid session = do
-      vals <- filter (\r -> rootoid `isPrefixOf` (oid r)) <$> mkSnmpBulkGet 0 50 startoid session
+      vals <- filter (\r -> (oid r) `isSubIdOf` rootoid) <$> mkSnmpBulkGet 0 50 startoid session
       case vals of
         [] -> return []
         rs -> (vals ++) <$> bulkWalk rootoid (oid (last rs)) session
+    isSubIdOf :: String -> String -> Bool
+    isSubIdOf oa ob = (splitAt '.' ob) `isPrefixOf` (splitAt '.' oa)
+    splitAt :: Char -> String -> [String]
+    splitAt c s = case dropWhile (c ==) s of
+                      "" -> []
+                      s' -> w : splitAt c s''
+                            where (w, s'') = break (c ==) s'
   
 -- getbulk, using session info from a 'data Session' and
 -- the supplied oid

@@ -1,6 +1,6 @@
 
 Name:               NetSNMP
-Version:            0.2.0.0
+Version:            0.2.0.1
 Synopsis:           Bindings for net-snmp's C API for clients
 Description:        Network.Protocol.NetSNMP is a partial binding to the
                     library portion of the net-snmp package.  It uses the
