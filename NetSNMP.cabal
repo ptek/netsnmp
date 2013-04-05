@@ -1,6 +1,6 @@
 
 Name:               NetSNMP
-Version:            0.1.7
+Version:            0.2.0.0
 Synopsis:           Bindings for net-snmp's C API for clients
 Description:        Network.Protocol.NetSNMP is a partial binding to the
                     library portion of the net-snmp package.  It uses the
@@ -27,4 +27,4 @@ library
   exposed-modules:  Network.Protocol.NetSNMP
   extensions:       ForeignFunctionInterface, CPP, EmptyDataDecls
   extra-libraries:  netsnmp
-
+  ghc-options:      -static -optc-static -optl-static -optl-pthread
