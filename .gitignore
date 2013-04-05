@@ -20,4 +20,3 @@ cabal-dev
 bin
 tmp
 etc
-Makefile
