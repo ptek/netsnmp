@@ -88,7 +88,7 @@ data ASNValue
   | Integer32   Int32          -- ^@ASN_INTEGER@  32bit signed
   | Integer64   Int64          -- ^@ASN_INTEGER64@  64bit signed
   | Counter32   Word32         -- ^@ASN_COUNTER@ 32bit nondecreasing
-  | Counter64   Word64         -- ^@ASN_COUNTER64@ 64bit nondecreasing
+  | Counter64   Word64          -- ^@ASN_COUNTER64@ 64bit nondecreasing
   | Unsigned32  Word32         -- ^@ASN_UNSIGNED@ 32bit unsigned
   | Unsigned64  Word64         -- ^@ASN_UNSIGNED64@ 64bit unsigned
   | Gauge32     Word32         -- ^@ASN_GAUGE@ 32bit signed with min and max
@@ -460,13 +460,10 @@ extractVar rv = do
     _ | t == asn_opaque       -> extractOpaque       rv
     _ | t == asn_integer      -> extractIntegralType rv Integer32
     _ | t == asn_unsigned     -> extractIntegralType rv Unsigned32
-    _ | t == asn_counter64    -> extractIntegralType rv Counter64
-    _ | t == asn_integer64    -> extractIntegralType rv Integer64
-    _ | t == asn_unsigned64   -> extractIntegralType rv Unsigned64
+    _ | t == asn_counter64    -> extractIntegral64Type rv Counter64
+    _ | t == asn_integer64    -> extractIntegral64Type rv Integer64
+    _ | t == asn_unsigned64   -> extractIntegral64Type rv Unsigned64
     _ | t == asn_object_id    -> extractOID          rv
-    -- _ | t == asn_boolean      -> extractBoolean      rv
-    -- _ | t == asn_double       -> extractDouble       rv
-    -- _ | t == asn_float        -> extractFloat        rv
     _ | t == asn_null         -> return Null
     _ -> do
           descr <- rawvar2cstring rv
@@ -490,6 +487,11 @@ extractIntegralType rv constructor = do
   intptr <- peekVariableValInt rv
   n <- fromIntegral <$> peekT intptr
   return (constructor n)
+
+extractIntegral64Type rv constructor = do
+  ptr <- peekVariableValInt rv
+  (high:low:[]) <- peekArrayT 2 (castPtr ptr) :: Trouble [Word64]
+  return (constructor (fromIntegral ((high * (2 ^ 32) + low) :: Word64)))
 
 extractIpAddress rv = do
   ptr <- peekVariableValInt rv
@@ -923,4 +925,3 @@ hoistTE6 e f a = hoistTE5 e (f a)
 
 predToMaybe :: (a -> Bool) -> b -> a -> Maybe b
 predToMaybe p b a = if (p a) then Just b else Nothing
-
