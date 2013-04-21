@@ -1,5 +1,5 @@
 
-{-# LANGUAGE CPP, DoAndIfThenElse, ForeignFunctionInterface, EmptyDataDecls #-}
+{-# LANGUAGE CPP, DoAndIfThenElse, ForeignFunctionInterface, EmptyDataDecls, OverloadedStrings #-}
 
 ----------------------------------------------------------------------
 -- |
@@ -16,7 +16,7 @@
 
 module Network.Protocol.NetSNMP (
   -- * Types
-  ASNValue(..), SnmpResult(..), SnmpVersion(..),
+  ASNValue(..), SnmpResult(..), SnmpVersion(..), RawOID, OIDpart
   Hostname, Community,
   -- * Constants
   snmp_version_1, snmp_version_2c, snmp_version_3,
@@ -32,7 +32,10 @@ where
 
 import           Control.Applicative
 import           Control.Monad
+import           Data.ByteString (ByteString)
+import qualified Data.ByteString as B
 import           Data.List
+import		 Data.String
 import           Foreign
 import           Foreign.C.String
 import           Foreign.C.Types
@@ -72,6 +75,14 @@ type OIDpart = CUChar                      -- C typedef oid
 type OIDpart = CULong
 #endif
 
+type RawOID = [OIDpart]
+
+showOid :: RawOID -> String
+showOid = concatMap (('.':) . show)
+
+oidToByteString :: RawOID -> ByteString
+oidToByteString = fromString . showOid
+
 -- I don't know whether (or which of) net-snmp's library functions
 -- account for bytesex; there may be endian bugs lurking here.
 data CVarList                           -- C struct variable_list
@@ -80,31 +91,31 @@ data CVarList                           -- C struct variable_list
 --     returned in more than one format for different uses.  Some
 --     include a descriptive string built by the underlying C library.
 data ASNValue
-  = OctetString String [Word8] -- ^@ASN_OCTET_STR@ Returned as a character
+  = OctetString ByteString [Word8] -- ^@ASN_OCTET_STR@ Returned as a character
                                --     string, and as opaque data.
-  | OID String String [Word32] -- ^@ASN_OBJECT_ID@ Returned as the C library's
+  | OID ByteString ByteString [Word32] -- ^@ASN_OBJECT_ID@ Returned as the C library's
                                --     description, a dotted-decimal string, and
                                --     a numeric list
   | Integer32   Int32          -- ^@ASN_INTEGER@  32bit signed
   | Integer64   Int64          -- ^@ASN_INTEGER64@  64bit signed
   | Counter32   Word32         -- ^@ASN_COUNTER@ 32bit nondecreasing
-  | Counter64   Word64          -- ^@ASN_COUNTER64@ 64bit nondecreasing
+  | Counter64   Word64         -- ^@ASN_COUNTER64@ 64bit nondecreasing
   | Unsigned32  Word32         -- ^@ASN_UNSIGNED@ 32bit unsigned
   | Unsigned64  Word64         -- ^@ASN_UNSIGNED64@ 64bit unsigned
   | Gauge32     Word32         -- ^@ASN_GAUGE@ 32bit signed with min and max
-  | IpAddress   String [Word8] -- ^@ASN_IPADDRESS@ IP address in string
+  | IpAddress   ByteString [Word8] -- ^@ASN_IPADDRESS@ IP address in string
                                --     and numeric form. Example:
                                --     (IpAddress \"1.2.3.4\" [1,2,3,4])
   | Opaque      [Word8]        -- ^@ASN_OPAQUE@ (Deprecated) application
                                --     specific data.  Use OctetString instead.
-  | TimeTicks   String Word32  -- ^@ASN_TIMETICKS@ Time interval in 1/100 sec
+  | TimeTicks   ByteString Word32  -- ^@ASN_TIMETICKS@ Time interval in 1/100 sec
                                --     ticks.  The C library's description is
                                --     returned along with the raw value.
   | Boolean     Bool           -- ^@ASN_BOOLEAN@ Unimplemented.
   | IEEEFloat   Float          -- ^@ASN_FLOAT@ IEEE float. Unimplemented.
   | IEEEDouble  Double         -- ^@ASN_DOUBLE@ IEEE double. Unimplemented.
   | Null                       -- ^@ASN_NULL@ Null value
-  | Unsupported Int String     -- ^Unsupported type from an agent.  Returns
+  | Unsupported Int ByteString -- ^Unsupported type from an agent.  Returns
                                --     the numeric type and the C library's
                                --     description of the value.
   deriving (Eq, Show)
@@ -112,7 +123,7 @@ data ASNValue
 -- |An SNMP value together with its OID.  Returned by the query
 --     routines 'snmpGet', 'snmpNext', and 'snmpWalk'.
 data SnmpResult  = SnmpResult {
-  oid   :: String,             -- ^Dotted-decimal ObjectId of the value
+  oid   :: RawOID,           -- ^Dotted-decimal ObjectId of the value
   value :: ASNValue            -- ^Typed representation of the value
   } deriving (Eq, Show)
 
@@ -122,8 +133,8 @@ newtype SnmpVersion = SnmpVersion {
   unSnmpVersion :: CLong -- ^Numeric version.  Generally unneeded.
   } deriving (Eq, Show)
 
-type Hostname  = String
-type Community = String
+type Hostname  = ByteString
+type Community = ByteString
 
 -- SNMP protocol versions, omitting those that will never be supported
 -- (see README)
@@ -266,20 +277,20 @@ closeSession session = hoistT (c_snmp_sess_close (getSessp session))
 --
 -- Examples:
 --
--- * snmpGet \"localhost\" \"public\" \".1.3.6.1.2.1.1.1.0\"
+-- * snmpGet \"localhost\" \"public\" [1,3,6,1,2,1,1,1,0]
 --
--- * snmpGet \"tcp:localhost:5161\" \"mypassword\" \".1.3.6.1.2.1.1.1.0\"
+-- * snmpGet \"tcp:localhost:5161\" \"mypassword\" [1,3,6,1,2,1,1,1,0]
 snmpGet
   :: SnmpVersion -- ^'snmp_version_1' or 'snmp_version_2c'
   -> Hostname    -- ^IP or hostname of the agent to be queried.  May have
                  --     prefix of @tcp:@ or suffix of @:port@
   -> Community   -- ^SNMP community (password)
-  -> String      -- ^OID to be queried
+  -> RawOID         -- ^OID to be queried
   -> IO (Either String SnmpResult)
 snmpGet version hostname community oid =
-  withCString hostname  $ \cshost  ->
-  withCString community $ \cscomm  ->
-  alloca                $ \session ->
+  B.useAsCString hostname  $ \cshost  ->
+  B.useAsCString community $ \cscomm  ->
+  alloca                   $ \session ->
   runTrouble $ bracketT
     (readyCommunitySession version cshost cscomm session)
     closeSession
@@ -290,20 +301,20 @@ snmpGet version hostname community oid =
 --
 -- Examples:
 --
--- * snmpNext \"localhost\" \"public\" \".1.3.6.1.2.1.1.1.0\"
+-- * snmpNext \"localhost\" \"public\" [1,3,6,1,2,1,1,1,0]
 --
--- * snmpNext \"tcp:localhost:5161\" \"mypassword\" \".1.3.6.1.2.1.1.1.0\"
+-- * snmpNext \"tcp:localhost:5161\" \"mypassword\" [1,3,6,1,2,1,1,1,0]
 snmpNext
   :: SnmpVersion -- ^'snmp_version_1' or 'snmp_version_2c'
   -> Hostname    -- ^IP or hostname of the agent to be queried.  May have
                  --     prefix of @tcp:@ or suffix of @:port@
   -> Community   -- ^SNMP community (password)
-  -> String      -- ^OID to be queried
+  -> RawOID         -- ^OID to be queried
   -> IO (Either String SnmpResult)
 snmpNext version hostname community oid =
-  withCString hostname  $ \cshost  ->
-  withCString community $ \cscomm  ->
-  alloca                $ \session ->
+  B.useAsCString hostname  $ \cshost  ->
+  B.useAsCString community $ \cscomm  ->
+  alloca                   $ \session ->
   runTrouble $ bracketT
     (readyCommunitySession version cshost cscomm session)
     closeSession
@@ -319,26 +330,26 @@ snmpNext version hostname community oid =
 --
 -- Examples:
 --
--- * snmpWalk snmp_version_2c \"localhost\" \"public\" \".1.3.6.1.2.1.1\"
+-- * snmpWalk snmp_version_2c \"localhost\" \"public\" [1,3,6,1,2,1,1]
 --
--- * snmpWalk snmp_version_2c \"tcp:localhost:5161\" \"mypassword\" \".1.3.6.1.2.1.1\"
+-- * snmpWalk snmp_version_2c \"tcp:localhost:5161\" \"mypassword\" [1,3,6,1,2,1,1]
 snmpWalk
   :: SnmpVersion -- ^'snmp_version_1' or 'snmp_version_2c'
   -> Hostname    -- ^IP or hostname of the agent to be queried.  May have
                  --     prefix of @tcp:@ or suffix of @:port@
   -> Community   -- ^SNMP community (password)
-  -> String      -- ^OID to be queried
+  -> RawOID         -- ^OID to be queried
   -> IO (Either String [SnmpResult])
 snmpWalk version hostname community walkoid =
-    withCString hostname  $ \cshost  ->
-    withCString community $ \cscomm  ->
-    alloca                $ \session ->
+    B.useAsCString hostname  $ \cshost  ->
+    B.useAsCString community $ \cscomm  ->
+    alloca                   $ \session ->
     runTrouble $ bracketT
       (readyCommunitySession version cshost cscomm session)
       closeSession
       (go walkoid . mkSnmpGet snmp_msg_getnext)
   where
-    go :: String -> (String -> Trouble SnmpResult) -> Trouble [SnmpResult]
+    go :: RawOID -> (RawOID -> Trouble SnmpResult) -> Trouble [SnmpResult]
     go oid next = do
       v@(SnmpResult nextoid val) <- next oid
       case () of
@@ -353,42 +364,37 @@ snmpWalk version hostname community walkoid =
 --
 -- Examples:
 --
--- * snmpBulkWalk \"localhost\" \"public\" \".1.3.6.1.2.1.1\"
+-- * snmpBulkWalk \"localhost\" \"public\" [1,3,6,1,2,1,1]
 --
--- * snmpBulkWalk \"tcp:localhost:5161\" \"mypassword\" \".1.3.6.1.2.1.1\"
+-- * snmpBulkWalk \"tcp:localhost:5161\" \"mypassword\" [1,3,6,1,2,1,1]
 snmpBulkWalk 
   :: Hostname    -- ^IP or hostname of the agent to be queried.  May have
                  --     prefix of @tcp:@ or suffix of @:port@
   -> Community   -- ^SNMP community (password)
-  -> String      -- ^OID to be queried
+  -> RawOID         -- ^OID to be queried
   -> IO (Either String [SnmpResult])
 snmpBulkWalk hostname community walkoid =
-    withCString hostname  $ \cshost  ->
-    withCString community $ \cscomm  ->
-    alloca                $ \session ->
+    B.useAsCString hostname  $ \cshost  ->
+    B.useAsCString community $ \cscomm  ->
+    alloca                   $ \session ->
     runTrouble $ bracketT
       (readyCommunitySession snmp_version_2c cshost cscomm session)
       closeSession
       (bulkWalk walkoid walkoid)
   where
-    bulkWalk :: String -> String -> Session -> Trouble [SnmpResult]
+    bulkWalk :: RawOID -> RawOID -> Session -> Trouble [SnmpResult]
     bulkWalk rootoid startoid session = do
       vals <- filter (\r -> (oid r) `isSubIdOf` rootoid) <$> mkSnmpBulkGet 0 50 startoid session
       case vals of
         [] -> return []
         rs -> (vals ++) <$> bulkWalk rootoid (oid (last rs)) session
-    isSubIdOf :: String -> String -> Bool
-    isSubIdOf oa ob = (splitAt '.' ob) `isPrefixOf` (splitAt '.' oa)
-    splitAt :: Char -> String -> [String]
-    splitAt c s = case dropWhile (c ==) s of
-                      "" -> []
-                      s' -> w : splitAt c s''
-                            where (w, s'') = break (c ==) s'
+    isSubIdOf :: RawOID -> RawOID -> Bool
+    isSubIdOf oa ob = ob `isPrefixOf` oa
   
 -- getbulk, using session info from a 'data Session' and
 -- the supplied oid
 -- It is the caller's obligation to ensure the session's validity.  
-mkSnmpBulkGet :: CLong -> CLong -> String -> Session -> Trouble [SnmpResult]
+mkSnmpBulkGet :: CLong -> CLong -> RawOID -> Session -> Trouble [SnmpResult]
 mkSnmpBulkGet non_repeaters max_repetitions oid session =
   allocaArrayT (fromIntegral max_oid_len) $ \oids -> do
   let version = getVersion session
@@ -400,13 +406,13 @@ mkSnmpBulkGet non_repeaters max_repetitions oid session =
 -- get or getnext, using session info from a 'data Session' and
 -- the supplied oid
 -- It is the caller's obligation to ensure the session's validity.
-mkSnmpGet :: SnmpPDUType -> Session -> String -> Trouble SnmpResult
+mkSnmpGet :: SnmpPDUType -> Session -> RawOID -> Trouble SnmpResult
 mkSnmpGet pdutype session oid = do
   res <- (allocaArrayT (fromIntegral max_oid_len) $ \oids -> do
          let version = getVersion session
          pdu_req <- buildPDU pdutype oid oids version
          dispatchSnmpReq pdu_req session)
-  if (res == []) then throwT ("Could not get the snmp value at " ++ oid)
+  if (res == []) then throwT ("Could not get the snmp value at " ++ (showOid oid))
   else return $ head res
 
 dispatchSnmpReq :: Ptr SnmpPDU -> Session -> Trouble [SnmpResult]
@@ -431,12 +437,11 @@ dispatchSnmpReq pdu_req session = do
       return vars)  
 
 -- caller is obliged to ensure rv is valid and non-null
-vlist2oid :: Ptr CVarList -> Trouble String
+vlist2oid :: Ptr CVarList -> Trouble RawOID
 vlist2oid rv = do
   oidptr <- peekVariableName rv
   len    <- peekVariableLen  rv
-  oids   <- peekArrayT (fromIntegral len) oidptr :: Trouble [OIDpart]
-  return $ concatMap (('.':) . show) oids
+  peekArrayT (fromIntegral len) oidptr
 
 extractVars :: Ptr CVarList -> Trouble [SnmpResult]
 extractVars rv
@@ -496,7 +501,7 @@ extractIntegral64Type rv constructor = do
 extractIpAddress rv = do
   ptr <- peekVariableValInt rv
   octets <- peekArrayT 4 (castPtr ptr) :: Trouble [Word8]
-  let str = foldr1 (\a b -> (a++"."++b)) (map show octets)
+  let str = B.intercalate "." (map (fromString . show) octets)
   return (IpAddress str octets)
 
 extractOID :: Ptr CVarList -> Trouble ASNValue
@@ -504,10 +509,10 @@ extractOID rv = do
   oidptr <- peekVariableValObjid rv :: Trouble (Ptr OIDpart)
   len <- peekVariableValLen rv
   let oidlen = (fromIntegral len) `div` #{size oid}
-  oids <- peekArrayT oidlen oidptr :: Trouble [OIDpart]
-  let str = concatMap (('.':) . show) oids
+  oid <- peekArrayT oidlen oidptr :: Trouble RawOID
+  let str = oidToByteString oid
   descr <- rawvar2cstring rv
-  return (OID descr str (map fromIntegral oids))
+  return (OID descr str (map fromIntegral oid))
 
 extractTimeTicks rv = do
   intptr <- peekVariableValInt rv
@@ -520,35 +525,35 @@ extractTimeTicks rv = do
 --     and this function may disappear in a future version.
 showASNValue :: ASNValue -> String
 showASNValue v = case v of
-  OctetString s _     -> s
-  IpAddress   s _     -> s
+  OctetString s _     -> show s
+  IpAddress   s _     -> show s
   Counter32   c       -> show c 
   Gauge32     c       -> show c 
-  OID         d os ol -> os
+  OID         d os ol -> show os
   Opaque      cs      -> show cs
   Integer32   c       -> show c
   Unsigned32  c       -> show c 
   Counter64   c       -> show c 
   Integer64   c       -> show c
   Unsigned64  c       -> show c 
-  TimeTicks   s _     -> s
+  TimeTicks   s _     -> show s
   Boolean     c       -> show c
   IEEEDouble  c       -> show c
   IEEEFloat   c       -> show c
   Null                -> "ASN_NULL"
-  Unsupported t s     -> "Unknown type " ++ show t ++ ": " ++ s
+  Unsupported t s     -> "Unknown type " ++ show t ++ ": " ++ show s
 
 -- allocates space for the pdu request; snmp_sess_synch_response
 -- appears to free the request pdu
 buildPDU
   :: SnmpPDUType  -- eg. snmp_msg_get
-  -> String       -- eg. ".1.3.6.1.2.1.1.1.0"
+  -> RawOID       -- eg. [1,3,6,1,2,1,1,1,0]
   -> Ptr OIDpart  -- OIDpart array passed in b/c I don't know when it dallocs
   -> SnmpVersion  -- eg. snmp_version_1 or snmp_version_2c
   -> Trouble (Ptr SnmpPDU) -- returns pdu and oid length
 buildPDU pdutype oid oids version =
-  withCStringT oid $ \oid_cstr   ->
-  allocaT              $ \oidlen_ptr -> do
+  withCStringT (showOid oid) $ \oid_cstr   ->
+  allocaT                    $ \oidlen_ptr -> do
     pdu_req <- t_snmp_pdu_create pdutype
     pokePDUVersion pdu_req (unSnmpVersion version)
     pokePDUCommand pdu_req (unSnmpPDUType pdutype)
@@ -558,7 +563,7 @@ buildPDU pdutype oid oids version =
     t_snmp_add_null_var pdu_req oids oidlen
     return pdu_req
 
-rawvar2cstring :: Ptr CVarList -> Trouble String
+rawvar2cstring :: Ptr CVarList -> Trouble ByteString
 rawvar2cstring rv =
   allocaArray0T max_string_len $ \buf -> do
   rc <- t_snprint_by_type buf (fromIntegral max_string_len) rv
@@ -577,8 +582,8 @@ allocaArray0T n f = Trouble $ allocaArray0 n $ \p -> runTrouble (f p)
 withCStringT :: String -> (CString -> Trouble b) -> Trouble b
 withCStringT s f = Trouble $ withCString s $ \p -> runTrouble (f p)
 
-peekCStringT    = hoistT1 peekCString
-peekCStringLenT = hoistT1 peekCStringLen
+peekCStringT    = hoistT1 B.packCString
+peekCStringLenT = hoistT1 B.packCStringLen
 
 peekT :: (Storable a) => Ptr a -> Trouble a
 peekT = hoistT1 peek
