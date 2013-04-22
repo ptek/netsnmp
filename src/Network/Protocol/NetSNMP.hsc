@@ -16,7 +16,7 @@
 
 module Network.Protocol.NetSNMP (
   -- * Types
-  ASNValue(..), SnmpResult(..), SnmpVersion(..), RawOID, OIDpart
+  ASNValue(..), SnmpResult(..), SnmpVersion(..), RawOID, OIDpart,
   Hostname, Community,
   -- * Constants
   snmp_version_1, snmp_version_2c, snmp_version_3,

@@ -5,5 +5,5 @@ build:
 	cabal-dev install
 
 ghci: build
-	ghci -XOverloadedStrings -package-db cabal-dev/packages-7.*.conf
+	ghci -XOverloadedStrings -package-conf cabal-dev/packages-7.*.conf
 
