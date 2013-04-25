@@ -17,7 +17,8 @@ Author:             Pavlo Kerestey and Humane Software for Global Access Interne
 Maintainer:         Pavlo Kerestey <pavlo@kerestey.net>
 Stability:          alpha
 Build-type:         Simple
-Bug-reports:        mailto:pavlo@kerestey.net
+Homepage:           https://github.com/ptek/netsnmp
+Bug-reports:        https://github.com/ptek/netsnmp/issues
 
 library
   hs-source-dirs:   src
