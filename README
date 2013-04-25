@@ -23,5 +23,11 @@ NETSNMP_DISABLE_SNMPV1 or NETSNMP_DISABLE_SNMPV2C.  I'd love to support
 those options, since they may encourage better security, but I won't be able
 to prioritize this in the forseeable future.
 
+Version History
+===============
+
+0.2.* Implementation includes snmpBulkWalk
+
 See also: BUGS
+--------------
 

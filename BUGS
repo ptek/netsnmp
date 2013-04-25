@@ -22,8 +22,6 @@ This binding only supports a subset of the NetSNMP library's
 "single-session" api.  Only synchronous queries are supported, and only
 the get, next, and walk operations.
 
-No support for bulk get requests.
-
 No support (and none planned) for snmp traps.
 
 Many SNMP / ASN.1 data types are unsupported as yet.
