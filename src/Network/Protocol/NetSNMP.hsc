@@ -241,11 +241,10 @@ max_oid_len = #{const MAX_OID_LEN} :: CInt
 initialize :: IO ()
 initialize = do
   withCString "Haskell bindings" c_init_snmp
-  withCString "127.0.0.1" $ \localhost -> do
-  withCString "public"    $ \public    -> do
-  alloca                  $ \session   -> runTrouble $
-    (readyCommunitySession snmp_version_2c localhost public session)
-      >>= closeSession
+  withCString "127.0.0.1" $ \localhost -> 
+    withCString "public"  $ \public    -> 
+    alloca                $ \session   -> runTrouble $ 
+    readyCommunitySession snmp_version_2c localhost public session >>= closeSession
   return ()
 
 -- |Create an abstract session, suitable for reuse, responsible
@@ -384,7 +383,7 @@ snmpBulkWalk hostname community walkoid =
   where
     bulkWalk :: RawOID -> RawOID -> Session -> Trouble [SnmpResult]
     bulkWalk rootoid startoid session = do
-      vals <- filter (\r -> (oid r) `isSubIdOf` rootoid) <$> mkSnmpBulkGet 0 50 startoid session
+      vals <- filter (\r -> oid r `isSubIdOf` rootoid) <$> mkSnmpBulkGet 0 50 startoid session
       case vals of
         [] -> return []
         rs -> (vals ++) <$> bulkWalk rootoid (oid (last rs)) session
@@ -408,15 +407,15 @@ mkSnmpBulkGet non_repeaters max_repetitions oid session =
 -- It is the caller's obligation to ensure the session's validity.
 mkSnmpGet :: SnmpPDUType -> Session -> RawOID -> Trouble SnmpResult
 mkSnmpGet pdutype session oid = do
-  res <- (allocaArrayT (fromIntegral max_oid_len) $ \oids -> do
+  res <- allocaArrayT (fromIntegral max_oid_len) $ \oids -> do
          let version = getVersion session
          pdu_req <- buildPDU pdutype oid oids version
-         dispatchSnmpReq pdu_req session)
-  if (res == []) then throwT ("Could not get the snmp value at " ++ (showOid oid))
+         dispatchSnmpReq pdu_req session
+  if null res then throwT ("Could not get the snmp value at " ++ showOid oid)
   else return $ head res
 
 dispatchSnmpReq :: Ptr SnmpPDU -> Session -> Trouble [SnmpResult]
-dispatchSnmpReq pdu_req session = do
+dispatchSnmpReq pdu_req session = 
   allocaT $ \response_ptr -> do
   let sessp = getSessp session
   let sptr = getSptr session
@@ -478,7 +477,7 @@ extractVar rv = do
 extractOctetStr rv = do
   ptr <- peekVariableValString rv
   len <- peekVariableValLen rv
-  s <- peekCStringLenT (ptr , (fromIntegral len))
+  s <- peekCStringLenT (ptr , fromIntegral len)
   octets <- peekArrayT (fromIntegral len) (castPtr ptr)
   return (OctetString s octets)
 
@@ -741,20 +740,12 @@ foreign import ccall safe
         -> Ptr (Ptr SnmpPDU) -> IO CInt
 
 -- improved (?) version with fuller error handling
-t_snmp_sess_synch_response :: Ptr SnmpSession -> Ptr SnmpSession
-  -> Ptr SnmpPDU -> Ptr (Ptr SnmpPDU) -> Trouble ()
+t_snmp_sess_synch_response :: Ptr SnmpSession -> Ptr SnmpSession -> Ptr SnmpPDU -> Ptr (Ptr SnmpPDU) -> Trouble ()
 t_snmp_sess_synch_response sessp sptr pdu_req response_ptr = Trouble $ do
   success <- c_snmp_sess_synch_response sessp pdu_req response_ptr
-  -- snmpSessError was giving bus errors on x86_64
-  if (success == snmp_stat_success)
+  if success == snmp_stat_success
     then return (Right ())
     else Left <$> snmpError sptr
-  -- return $ case () of
-  --   _ | success == snmp_stat_success -> Right ()
-  --     | success == snmp_stat_error   -> Left "snmp_sess_synch_response error"
-  --     | success == snmp_stat_timeout -> Left "snmp_sess_synch_response timeout"
-  --     | otherwise -> Left
-  --         ("snmp_sess_synch_response unknown error code " ++ show success)
 
 -- Deallocate PDU struct
 foreign import ccall unsafe "net-snmp/net-snmp-includes.h snmp_free_pdu"
@@ -792,9 +783,9 @@ foreign import ccall unsafe "net-snmp/net-snmp-includes.h snmp_error"
       -> Ptr CString -> IO ()
 
 snmpError :: Ptr SnmpSession -> IO String
-snmpError p = do
-  alloca $ \libp -> do  -- pointer to library error code
-  alloca $ \sysp -> do  -- pointer to system error code
+snmpError p = 
+  alloca $ \libp ->     -- pointer to library error code
+  alloca $ \sysp ->     -- pointer to system error code
   alloca $ \errp -> do  -- pointer to error CString
   c_snmp_error p libp sysp errp
   liberr <- peek libp
@@ -813,27 +804,6 @@ snmpError p = do
 foreign import ccall unsafe "net-snmp/net-snmp-includes.h snmp_sess_error"
     c_snmp_sess_error :: Ptr SnmpSession -> Ptr CInt -> Ptr CInt
       -> Ptr CString -> IO ()
-
--- Using abbreviated error routine because th c_snmp_sess_error
--- call appears to be giving bus errors on my x86_64 test machine.
-snmpSessError :: Ptr SnmpSession -> IO String
-snmpSessError sptr =
-  return ("disabled snmp_sess_error check; sptr=" ++ show sptr)
-
-_snmpSessError :: Ptr SnmpSession -> IO String
-_snmpSessError sptr | sptr == nullPtr = return "snmp error; null sptr"
-_snmpSessError sptr = do
-  alloca $ \libp -> do  -- pointer to library error code
-  alloca $ \sysp -> do  -- pointer to system error code
-  alloca $ \errp -> do  -- pointer to error CString
-  c_snmp_sess_error sptr libp sysp errp
-  liberr <- peek libp :: IO CInt
-  syserr <- peek sysp :: IO CInt
-  cserr  <- peek errp
-  err    <- peekCString cserr
-  free cserr
-  return $ "snmpSessError: lib:" ++ show liberr ++ " ; sys:" ++ show syserr
-           ++ " ; " ++ err
 
 -- int snprint_by_type(char *buf, size_t buf_len, netsnmp_variable_list * var,
 --   const struct enum_list *enums, const char *hint, const char *units);
@@ -929,4 +899,4 @@ hoistTE5 e f a = hoistTE4 e (f a)
 hoistTE6 e f a = hoistTE5 e (f a)
 
 predToMaybe :: (a -> Bool) -> b -> a -> Maybe b
-predToMaybe p b a = if (p a) then Just b else Nothing
+predToMaybe p b a = if p a then Just b else Nothing
