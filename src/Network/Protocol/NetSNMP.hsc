@@ -4,12 +4,10 @@
 ----------------------------------------------------------------------
 -- |
 -- Module      : Network.Protocol.NetSNMP
--- Copyright   : 2009 John Dorsey
--- 
--- Maintainer  : John Dorsey <haskell@colquitt.org>
+--
+-- Maintainer  : Pavlo Kerestey <pavlo@kerestey.net>
 -- Portability : portable
--- Stability   : provisional
--- 
+--
 -- This is a binding to Net-SNMP version 5, <http://www.net-snmp.org/>.
 
 {- License: BSD3.  See included LICENSE and README files. -}
