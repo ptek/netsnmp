@@ -256,6 +256,8 @@ readyCommunitySession
 readyCommunitySession version hostname community session = do
   community_len     <- t_strlen community
   t_snmp_sess_init  session
+  pokeSessRetries   session 3
+  pokeSessTimeout   session 10000000
   pokeSessPeername  session hostname
   pokeSessVersion   session (unSnmpVersion version)
   pokeSessCommunity session community
@@ -624,16 +626,22 @@ peekVariableValObjid rv = hoistT $ #{peek struct variable_list, val.objid} rv
 peekVariableValLen :: Ptr CVarList -> Trouble CSize
 peekVariableValLen rv = hoistT $ #{peek struct variable_list, val_len} rv
 
-pokeSessPeername  :: Ptr SnmpSession -> CString -> Trouble ()
+pokeSessRetries :: Ptr SnmpSession -> CInt -> Trouble ()
+pokeSessRetries s h  = hoistT $ #{poke struct snmp_session , retries} s h
+
+pokeSessTimeout :: Ptr SnmpSession -> CLong -> Trouble ()
+pokeSessTimeout s h  = hoistT $ #{poke struct snmp_session , timeout} s h
+
+pokeSessPeername :: Ptr SnmpSession -> CString -> Trouble ()
 pokeSessPeername s h  = hoistT $ #{poke struct snmp_session , peername} s h
 
-pokeSessVersion   :: Ptr SnmpSession -> CLong   -> Trouble ()
+pokeSessVersion :: Ptr SnmpSession -> CLong   -> Trouble ()
 pokeSessVersion s v   = hoistT $ #{poke struct snmp_session , version} s v
 
 pokeSessCommunity :: Ptr SnmpSession -> CString -> Trouble ()
 pokeSessCommunity s c = hoistT $ #{poke struct snmp_session , community} s c
 
-pokeSessCommLen   :: Ptr SnmpSession -> CSize   -> Trouble ()
+pokeSessCommLen :: Ptr SnmpSession -> CSize   -> Trouble ()
 pokeSessCommLen s l = hoistT $ #{poke struct snmp_session , community_len} s l
 
 pokePDUVersion :: Ptr SnmpPDU -> CLong -> Trouble ()
