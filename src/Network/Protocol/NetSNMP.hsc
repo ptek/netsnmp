@@ -70,7 +70,7 @@ instance Storable SnmpPDU where
 #ifdef EIGHTBIT_SUBIDS
 type OIDpart = CUChar                      -- C typedef oid
 #else
-type OIDpart = CULong
+type OIDpart = CUInt
 #endif
 
 type RawOID = [OIDpart]
