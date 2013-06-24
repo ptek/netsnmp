@@ -27,7 +27,8 @@ Version History
 ===============
 
 0.3.0.4 - Reduced the default number of max-repetitions in Bulk PDUs to 30.
-          The previous value caused too big responces on the Extreme Network switches.
+          The previous value caused too big responces on the Extreme Network
+          switches.
 
 0.3.0.3 - Fixed a bug, where instead of 32 bit, the OID part was set to CLong,
           which became 64 bit in base 4.5
