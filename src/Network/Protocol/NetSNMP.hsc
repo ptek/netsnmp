@@ -383,16 +383,16 @@ snmpBulkWalk hostname community walkoid =
   where
     bulkWalk :: RawOID -> RawOID -> Session -> Trouble [SnmpResult]
     bulkWalk rootoid startoid session = do
-      vals <- filter (\r -> oid r `isSubIdOf` rootoid) <$> mkSnmpBulkGet 0 50 startoid session
+      vals <- filter (\r -> oid r `isSubIdOf` rootoid) <$> mkSnmpBulkGet 0 30 startoid session
       case vals of
         [] -> return []
         rs -> (vals ++) <$> bulkWalk rootoid (oid (last rs)) session
     isSubIdOf :: RawOID -> RawOID -> Bool
     isSubIdOf oa ob = ob `isPrefixOf` oa
-  
+
 -- getbulk, using session info from a 'data Session' and
 -- the supplied oid
--- It is the caller's obligation to ensure the session's validity.  
+-- It is the caller's obligation to ensure the session's validity.
 mkSnmpBulkGet :: CLong -> CLong -> RawOID -> Session -> Trouble [SnmpResult]
 mkSnmpBulkGet non_repeaters max_repetitions oid session =
   allocaArrayT (fromIntegral max_oid_len) $ \oids -> do
@@ -415,7 +415,7 @@ mkSnmpGet pdutype session oid = do
   else return $ head res
 
 dispatchSnmpReq :: Ptr SnmpPDU -> Session -> Trouble [SnmpResult]
-dispatchSnmpReq pdu_req session = 
+dispatchSnmpReq pdu_req session =
   allocaT $ \response_ptr -> do
   let sessp = getSessp session
   let sptr = getSptr session
@@ -429,11 +429,11 @@ dispatchSnmpReq pdu_req session =
       t_snmp_sess_synch_response sessp sptr pdu_req response_ptr
       pdu_resp <- peekT response_ptr
       errstat <- peekPDUErrstat pdu_resp
-      when (errstat /= snmp_err_noerror) (throwT "response PDU error")
+      when (errstat /= snmp_err_noerror) (throwT ("response PDU error: "++show errstat))
       rawvars <- peekPDUVariables pdu_resp
       vars <- extractVars rawvars
       unless (pdu_resp == nullPtr) $ t_snmp_free_pdu pdu_resp
-      return vars)  
+      return vars)
 
 -- caller is obliged to ensure rv is valid and non-null
 vlist2oid :: Ptr CVarList -> Trouble RawOID
