@@ -7,3 +7,7 @@ build:
 ghci: build
 	ghci -XOverloadedStrings -package-db cabal-dev/packages-7.6.*.conf
 
+test:
+	cabal-dev install --enable-tests
+	cabal-dev test
+
