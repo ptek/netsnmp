@@ -9,5 +9,4 @@ ghci: build
 
 test:
 	cabal-dev install --enable-tests
-	cabal-dev test
 
