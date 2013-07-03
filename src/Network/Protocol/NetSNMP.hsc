@@ -67,12 +67,7 @@ instance Storable SnmpPDU where
   sizeOf    _ = #size struct snmp_pdu
   alignment _ = 16
 
-#ifdef EIGHTBIT_SUBIDS
-type OIDpart = CUChar                      -- C typedef oid
-#else
-type OIDpart = CUInt
-#endif
-
+type OIDpart = #{type oid}
 type RawOID = [OIDpart]
 
 showOid :: RawOID -> String

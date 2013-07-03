@@ -26,8 +26,12 @@ to prioritize this in the forseeable future.
 Version History
 ===============
 
+0.3.0.5 - Tied the OIDPart to the correct C Type of the oid.
+          NOTE: This breaks the code on the OS X and we don't know why
+                The oid of the SNMP Result can not be read correctly
+
 0.3.0.4 - Reduced the default number of max-repetitions in Bulk PDUs to 30.
-          The previous value caused too big responces on the Extreme Network
+          The previous value caused oversized responses on Extreme Network
           switches.
 
 0.3.0.3 - Fixed a bug, where instead of 32 bit, the OID part was set to CLong,
