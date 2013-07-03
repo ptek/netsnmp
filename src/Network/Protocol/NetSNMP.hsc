@@ -67,7 +67,15 @@ instance Storable SnmpPDU where
   sizeOf    _ = #size struct snmp_pdu
   alignment _ = 16
 
+-- |The net-snmp C library on 64-bit OS X systems still uses 32-bit oid parts in
+--    the responses. Please make sure that the library produces sane
+--    results on your system by cloning the source code and running `make test`.
+#if defined(darwin)
+type OIDpart = CUInt
+#else
 type OIDpart = #{type oid}
+#endif /* GHC */
+
 type RawOID = [OIDpart]
 
 showOid :: RawOID -> String

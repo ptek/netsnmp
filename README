@@ -26,6 +26,8 @@ to prioritize this in the forseeable future.
 Version History
 ===============
 
+0.3.0.6 - OIDpart type is hacked to work correctly on OS X
+
 0.3.0.5 - Tied the OIDPart to the correct C Type of the oid.
           NOTE: This breaks the code on the OS X and we don't know why
                 The oid of the SNMP Result can not be read correctly
