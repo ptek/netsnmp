@@ -1,6 +1,5 @@
 module Main where
 
-import Network.Protocol.NetSNMP
 import System.Exit
 import SystemTest.Platform (tests)
 import Test.HUnit

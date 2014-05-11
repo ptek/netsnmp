@@ -2,7 +2,7 @@
 all: build
 
 init:
-	cabal sandbox init
+	@if [ ! -f cabal.sandbox.config ] ; then (cabal sandbox init); fi;
 	cabal install --only-dependencies
 
 build: init
@@ -11,6 +11,8 @@ build: init
 ghci: build
 	cabal repl --ghc-option -XOverloadedStrings
 
-test:
+test: init
 	cabal install --enable-tests
+	cabal test
+
 

@@ -34,8 +34,7 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.UTF8 as Utf8
 import           Data.List
-import		 Data.String
-import           Foreign
+import           Foreign hiding (void)
 import           Foreign.C.String
 import           Foreign.C.Types
 
@@ -243,11 +242,10 @@ max_oid_len = #{const MAX_OID_LEN} :: CInt
 initialize :: IO ()
 initialize = do
   withCString "Haskell bindings" c_init_snmp
-  withCString "127.0.0.1" $ \localhost -> 
-    withCString "public"  $ \public    -> 
-    alloca                $ \session   -> runTrouble $ 
-    readyCommunitySession snmp_version_2c localhost public session >>= closeSession
-  return ()
+  void $ withCString "127.0.0.1" $ \localhost ->
+         withCString "public"    $ \public    ->
+         alloca                  $ \session   -> runTrouble $
+         readyCommunitySession snmp_version_2c localhost public session >>= closeSession
 
 -- |Create an abstract session, suitable for reuse, responsible
 -- for freeing the string components
@@ -290,14 +288,14 @@ snmpGet
   -> Community   -- ^SNMP community (password)
   -> RawOID         -- ^OID to be queried
   -> IO (Either String SnmpResult)
-snmpGet version hostname community oid =
+snmpGet version hostname community oid' =
   B.useAsCString hostname  $ \cshost  ->
   B.useAsCString community $ \cscomm  ->
   alloca                   $ \session ->
   runTrouble $ bracketT
     (readyCommunitySession version cshost cscomm session)
     closeSession
-    (flip (mkSnmpGet snmp_msg_get) oid)
+    (flip (mkSnmpGet snmp_msg_get) oid')
 
 -- |Simple community-authenticated SNMP getnext.  Returns the first object
 --     after the OID queried, or a descriptive error message.
@@ -314,14 +312,14 @@ snmpNext
   -> Community   -- ^SNMP community (password)
   -> RawOID         -- ^OID to be queried
   -> IO (Either String SnmpResult)
-snmpNext version hostname community oid =
+snmpNext version hostname community oid' =
   B.useAsCString hostname  $ \cshost  ->
   B.useAsCString community $ \cscomm  ->
   alloca                   $ \session ->
   runTrouble $ bracketT
     (readyCommunitySession version cshost cscomm session)
     closeSession
-    (flip (mkSnmpGet snmp_msg_getnext) oid)
+    (flip (mkSnmpGet snmp_msg_getnext) oid')
 
 -- |Simple community-authenticated SNMP walk.  Returns a list of objects,
 --     starting with the object after the OID queried, and continuing
@@ -353,14 +351,14 @@ snmpWalk version hostname community walkoid =
       (go walkoid . mkSnmpGet snmp_msg_getnext)
   where
     go :: RawOID -> (RawOID -> Trouble SnmpResult) -> Trouble [SnmpResult]
-    go oid next = do
-      v@(SnmpResult nextoid val) <- next oid
+    go oid' next = do
+      v@(SnmpResult nextoid _) <- next oid'
       case () of
-        _ | nextoid == oid -> return [] -- throwT "end of mib" -- return []
+        _ | nextoid == oid' -> return [] -- throwT "end of mib"
           | walkoid `isPrefixOf` nextoid -> do
             vs <- go nextoid next
             return (v:vs)
-          | otherwise -> return [] -- throwT "end of walk" -- return []
+          | otherwise -> return [] -- throwT "end of walk"
 
 
 -- |Same as snmpWalk but implemented with bulk requests
@@ -398,10 +396,10 @@ snmpBulkWalk hostname community walkoid =
 -- the supplied oid
 -- It is the caller's obligation to ensure the session's validity.
 mkSnmpBulkGet :: CLong -> CLong -> RawOID -> Session -> Trouble [SnmpResult]
-mkSnmpBulkGet non_repeaters max_repetitions oid session =
+mkSnmpBulkGet non_repeaters max_repetitions oid' session =
   allocaArrayT (fromIntegral max_oid_len) $ \oids -> do
   let version = getVersion session
-  pdu_req <- buildPDU snmp_msg_getbulk oid oids version
+  pdu_req <- buildPDU snmp_msg_getbulk oid' oids version
   pokePDUNonRepeaters pdu_req non_repeaters
   pokePDUMaxRepetitions pdu_req max_repetitions
   dispatchSnmpReq pdu_req session
@@ -410,12 +408,12 @@ mkSnmpBulkGet non_repeaters max_repetitions oid session =
 -- the supplied oid
 -- It is the caller's obligation to ensure the session's validity.
 mkSnmpGet :: SnmpPDUType -> Session -> RawOID -> Trouble SnmpResult
-mkSnmpGet pdutype session oid = do
+mkSnmpGet pdutype session oid' = do
   res <- allocaArrayT (fromIntegral max_oid_len) $ \oids -> do
          let version = getVersion session
-         pdu_req <- buildPDU pdutype oid oids version
+         pdu_req <- buildPDU pdutype oid' oids version
          dispatchSnmpReq pdu_req session
-  if null res then throwT ("Could not get the snmp value at " ++ showOid oid)
+  if null res then throwT ("Could not get the snmp value at " ++ showOid oid')
   else return $ head res
 
 dispatchSnmpReq :: Ptr SnmpPDU -> Session -> Trouble [SnmpResult]
@@ -457,7 +455,7 @@ extractVars rv
 
 extractVar :: Ptr CVarList -> Trouble SnmpResult
 extractVar rv = do
-  oid <- vlist2oid rv
+  oid' <- vlist2oid rv
   t <- peekVariableType rv
   v <- case () of
     _ | t == asn_octet_str    -> extractOctetStr     rv
@@ -476,7 +474,7 @@ extractVar rv = do
     _ -> do
           descr <- rawvar2cstring rv
           return $ Unsupported (fromIntegral t) descr
-  return (SnmpResult oid v)
+  return (SnmpResult oid' v)
 
 extractOctetStr rv = do
   ptr <- peekVariableValString rv
@@ -499,7 +497,7 @@ extractIntegralType rv constructor = do
 extractIntegral64Type rv constructor = do
   ptr <- peekVariableValInt rv
   (high:low:[]) <- peekArrayT 2 (castPtr ptr) :: Trouble [Word64]
-  return (constructor (fromIntegral ((high * (2 ^ 32) + low) :: Word64)))
+  return (constructor (fromIntegral ((high * (2 ^ (32 :: Word64)) + low) :: Word64)))
 
 extractIpAddress rv = do
   ptr <- peekVariableValInt rv
@@ -512,10 +510,10 @@ extractOID rv = do
   oidptr <- peekVariableValObjid rv :: Trouble (Ptr OIDpart)
   len <- peekVariableValLen rv
   let oidlen = (fromIntegral len) `div` #{size oid}
-  oid <- peekArrayT oidlen oidptr :: Trouble RawOID
-  let str = oidToByteString oid
+  oid' <- peekArrayT oidlen oidptr :: Trouble RawOID
+  let str = oidToByteString oid'
   descr <- rawvar2cstring rv
-  return (OID descr str (map fromIntegral oid))
+  return (OID descr str (map fromIntegral oid'))
 
 extractTimeTicks rv = do
   intptr <- peekVariableValInt rv
@@ -532,7 +530,7 @@ showASNValue v = case v of
   IpAddress   s _     -> show s
   Counter32   c       -> show c
   Gauge32     c       -> show c
-  OID         d os ol -> show os
+  OID         _ os _  -> show os
   Opaque      cs      -> show cs
   Integer32   c       -> show c
   Unsigned32  c       -> show c
@@ -554,14 +552,14 @@ buildPDU
   -> Ptr OIDpart  -- OIDpart array passed in b/c I don't know when it dallocs
   -> SnmpVersion  -- eg. snmp_version_1 or snmp_version_2c
   -> Trouble (Ptr SnmpPDU) -- returns pdu and oid length
-buildPDU pdutype oid oids version =
-  withCStringT (showOid oid) $ \oid_cstr   ->
-  allocaT                    $ \oidlen_ptr -> do
+buildPDU pdutype oid' oids version =
+  withCStringT (showOid oid') $ \oid_cstr   ->
+  allocaT                     $ \oidlen_ptr -> do
     pdu_req <- t_snmp_pdu_create pdutype
     pokePDUVersion pdu_req (unSnmpVersion version)
     pokePDUCommand pdu_req (unSnmpPDUType pdutype)
     pokeT oidlen_ptr (fromIntegral max_oid_len)
-    t_read_objid oid_cstr oids oidlen_ptr    -- or t_get_node
+    _ <- t_read_objid oid_cstr oids oidlen_ptr    -- or t_get_node
     oidlen <- peekT oidlen_ptr
     t_snmp_add_null_var pdu_req oids oidlen
     return pdu_req
@@ -569,8 +567,8 @@ buildPDU pdutype oid oids version =
 rawvar2cstring :: Ptr CVarList -> Trouble ByteString
 rawvar2cstring rv =
   allocaArray0T max_string_len $ \buf -> do
-  rc <- t_snprint_by_type buf (fromIntegral max_string_len) rv
-          nullPtr nullPtr nullPtr
+  _ <- t_snprint_by_type buf (fromIntegral max_string_len) rv
+         nullPtr nullPtr nullPtr
   peekCStringT buf
 
 allocaT :: (Storable a) => (Ptr a -> Trouble b) -> Trouble b
@@ -711,13 +709,13 @@ t_snmp_pdu_create = hoistTE1
   c_snmp_pdu_create
 
 -- Parse string argument as OID; populate OIDpart array and size
-foreign import ccall unsafe "net-snmp/net-snmp-includes.h get_node"
-    c_get_node :: CString -> Ptr OIDpart -> Ptr CSize -> IO CInt
+-- foreign import ccall unsafe "net-snmp/net-snmp-includes.h get_node"
+--     c_get_node :: CString -> Ptr OIDpart -> Ptr CSize -> IO CInt
 
-t_get_node = hoistTE3
-  (predToMaybe (not . (>0)) "get_node failed")
-  -- (\i -> if (i <= 0) then Just "get_node failed" else Nothing)
-  c_get_node
+-- t_get_node = hoistTE3
+--   (predToMaybe (not . (>0)) "get_node failed")
+--   -- (\i -> if (i <= 0) then Just "get_node failed" else Nothing)
+--   c_get_node
 
 -- OID parser/builder script.  How does this differ from get_node?
 foreign import ccall unsafe "net-snmp/net-snmp-includes.h read_objid"
@@ -729,13 +727,13 @@ t_read_objid = hoistTE3
   c_read_objid
 
 -- OID parser/builder script.  How does this differ from get_node?
-foreign import ccall unsafe "net-snmp/net-snmp-includes.h snmp_parse_oid"
-    c_snmp_parse_oid :: CString -> Ptr OIDpart -> Ptr CSize -> IO CInt
+-- foreign import ccall unsafe "net-snmp/net-snmp-includes.h snmp_parse_oid"
+--     c_snmp_parse_oid :: CString -> Ptr OIDpart -> Ptr CSize -> IO CInt
 
-t_snmp_parse_oid = hoistTE3
-  (predToMaybe (not . (>0)) "snmp_parse_oid failed")
-  -- (\i -> if (i <= 0) then Just "snmp_parse_oid failed" else Nothing)
-  c_snmp_parse_oid
+-- t_snmp_parse_oid = hoistTE3
+--   (predToMaybe (not . (>0)) "snmp_parse_oid failed")
+--   -- (\i -> if (i <= 0) then Just "snmp_parse_oid failed" else Nothing)
+--   c_snmp_parse_oid
 
 -- Add oid with void result; suitable for building a query
 foreign import ccall unsafe "net-snmp/net-snmp-includes.h snmp_add_null_var"
@@ -767,21 +765,18 @@ t_snmp_free_pdu = hoistT1 c_snmp_free_pdu
 foreign import ccall unsafe "net-snmp/net-snmp-includes.h snmp_sess_close"
     c_snmp_sess_close :: Ptr SnmpSession -> IO ()
 
-t_snmp_sess_close = hoistT1 c_snmp_sess_close
+-- t_snmp_sess_close = hoistT1 c_snmp_sess_close
 
 -- Send and enqueue request PDU for asynch use, not currently supported.
 -- foreign import ccall unsafe "net-snmp/net-snmp-includes.h snmp_sess_send"
 --     c_snmp_sess_send :: Ptr SnmpSession -> Ptr SnmpPDU -> IO CInt
 
 -- Print result value to stdout
-foreign import ccall safe "net-snmp/net-snmp-includes.h print_variable"
-    c_print_variable :: Ptr OIDpart -> CSize -> Ptr CVarList -> IO ()
-
-t_print_variable = hoistT3 c_print_variable
+-- foreign import ccall safe "net-snmp/net-snmp-includes.h print_variable"
+--     c_print_variable :: Ptr OIDpart -> CSize -> Ptr CVarList -> IO ()
 
 -- t_print_variable :: Ptr OIDpart -> CSize -> Ptr CVarList -> Trouble ()
--- t_print_variable o s r = Trouble $ Right <$> c_print_variable o s r
-
+-- t_print_variable = hoistT3 c_print_variable
 
 -- Return library error description
 -- This one should only be used for failure of snmp_sess_open; use
@@ -811,9 +806,9 @@ snmpError p =
 -- snmp_sess_open failure.  
 -- library/snmp_api.h
 -- void snmp_sess_error(void *, int *, int *, char **);
-foreign import ccall unsafe "net-snmp/net-snmp-includes.h snmp_sess_error"
-    c_snmp_sess_error :: Ptr SnmpSession -> Ptr CInt -> Ptr CInt
-      -> Ptr CString -> IO ()
+-- foreign import ccall unsafe "net-snmp/net-snmp-includes.h snmp_sess_error"
+--     c_snmp_sess_error :: Ptr SnmpSession -> Ptr CInt -> Ptr CInt
+--       -> Ptr CString -> IO ()
 
 -- int snprint_by_type(char *buf, size_t buf_len, netsnmp_variable_list * var,
 --   const struct enum_list *enums, const char *hint, const char *units);
@@ -861,24 +856,16 @@ catchT :: Trouble a -> (String -> Trouble a) -> Trouble a
 catchT m h = Trouble $ do
   r <- runTrouble m
   case r of (Left s)  -> runTrouble (h s)
-            (Right v) -> return r
+            (Right _) -> return r
 
 handleT :: (String -> Trouble a) -> Trouble a -> Trouble a
 handleT = flip catchT
-
--- _bracketT :: Trouble a -> (a -> Trouble b) -> (a -> Trouble c) -> Trouble c
--- _bracketT before after thing = do
---   a <- before
---   handleT (\s -> after a >> throwT s) $ do
---     result <- thing a
---     after a
---     return result
 
 bracketT :: Trouble a -> (a -> Trouble b) -> (a -> Trouble c) -> Trouble c
 bracketT before after thing = do
   a <- before
   result <- handleT (\s -> after a >> throwT s) (thing a)
-  after a
+  _ <- after a
   return result
 
 -- Routines to 'hoist' anything with IO return type into the
@@ -904,9 +891,9 @@ hoistTE0 e f = Trouble $ do
 hoistTE1 e f a = hoistTE0 e (f a)
 hoistTE2 e f a = hoistTE1 e (f a)
 hoistTE3 e f a = hoistTE2 e (f a)
-hoistTE4 e f a = hoistTE3 e (f a)
-hoistTE5 e f a = hoistTE4 e (f a)
-hoistTE6 e f a = hoistTE5 e (f a)
+--hoistTE4 e f a = hoistTE3 e (f a)
+--hoistTE5 e f a = hoistTE4 e (f a)
+--hoistTE6 e f a = hoistTE5 e (f a)
 
 predToMaybe :: (a -> Bool) -> b -> a -> Maybe b
 predToMaybe p b a = if p a then Just b else Nothing
