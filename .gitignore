@@ -9,14 +9,15 @@ syntax: glob
 **\#*
 TAGS
 
+.cabal-sandbox
 build
 dist
 cabal-dev
+cabal.sandbox.config
 *.o
 *.hi
 *.chi
 *.chs.h
 
-bin
 tmp
-etc
+

@@ -32,6 +32,7 @@ import           Control.Applicative
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
+import qualified Data.ByteString.UTF8 as Utf8
 import           Data.List
 import		 Data.String
 import           Foreign
@@ -82,7 +83,7 @@ showOid :: RawOID -> String
 showOid = concatMap (('.':) . show)
 
 oidToByteString :: RawOID -> ByteString
-oidToByteString = fromString . showOid
+oidToByteString = Utf8.fromString . showOid
 
 -- I don't know whether (or which of) net-snmp's library functions
 -- account for bytesex; there may be endian bugs lurking here.
@@ -503,7 +504,7 @@ extractIntegral64Type rv constructor = do
 extractIpAddress rv = do
   ptr <- peekVariableValInt rv
   octets <- peekArrayT 4 (castPtr ptr) :: Trouble [Word8]
-  let str = B.intercalate "." (map (fromString . show) octets)
+  let str = B.intercalate "." (map (B.pack . (:[])) octets)
   return (IpAddress str octets)
 
 extractOID :: Ptr CVarList -> Trouble ASNValue
@@ -529,15 +530,15 @@ showASNValue :: ASNValue -> String
 showASNValue v = case v of
   OctetString s _     -> show s
   IpAddress   s _     -> show s
-  Counter32   c       -> show c 
-  Gauge32     c       -> show c 
+  Counter32   c       -> show c
+  Gauge32     c       -> show c
   OID         d os ol -> show os
   Opaque      cs      -> show cs
   Integer32   c       -> show c
-  Unsigned32  c       -> show c 
-  Counter64   c       -> show c 
+  Unsigned32  c       -> show c
+  Counter64   c       -> show c
   Integer64   c       -> show c
-  Unsigned64  c       -> show c 
+  Unsigned64  c       -> show c
   TimeTicks   s _     -> show s
   Boolean     c       -> show c
   IEEEDouble  c       -> show c
