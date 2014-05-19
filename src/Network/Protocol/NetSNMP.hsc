@@ -37,6 +37,7 @@ import           Data.List
 import           Foreign hiding (void)
 import           Foreign.C.String
 import           Foreign.C.Types
+import           Data.ByteString.Char8 ()
 
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-includes.h>
