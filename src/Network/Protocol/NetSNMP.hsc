@@ -28,7 +28,6 @@ module Network.Protocol.NetSNMP (
   )
 where
 
-import           Control.Applicative
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
@@ -836,6 +835,15 @@ t_strlen = hoistT1 c_strlen
 -- type Trouble = ErrorT String IO
 
 newtype Trouble a = Trouble { runTrouble :: IO (Either String a) }
+
+instance Applicative Trouble where
+  pure a = Trouble $ pure (Right a)
+  -- (<*>) :: Trouble (a -> b) -> Trouble a -> Trouble b
+  f <*> v = Trouble $ do
+    r <- runTrouble f
+    v' <- runTrouble v
+    case r of (Left s)   -> return (Left s)
+              (Right f') -> return (fmap f' v')
 
 instance Functor Trouble where
   fmap f m = Trouble $ do
