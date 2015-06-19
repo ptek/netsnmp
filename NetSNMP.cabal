@@ -18,7 +18,7 @@ stability:            alpha
 build-type:           Simple
 homepage:             https://github.com/ptek/netsnmp
 bug-reports:          https://github.com/ptek/netsnmp/issues
-extra-source-files:   changes.md
+extra-source-files:   changes
 
 source-repository head
   type:               git
