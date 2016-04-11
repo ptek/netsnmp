@@ -6,7 +6,7 @@ import Test.HUnit
 import System.Cmd
 
 tests = test [
-   do
+   "snmpGet returns correct OID" ~: do
      o <- bracket_
             givenSnmpdRunning
             killSnmpd

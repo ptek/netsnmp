@@ -32,7 +32,7 @@ import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import           Data.ByteString.Char8 ()
-import qualified Data.ByteString.UTF8 as Utf8
+import qualified Data.ByteString.Char8 as BC
 import           Data.List
 import           Foreign hiding (void)
 import           Foreign.C.String
@@ -82,7 +82,7 @@ showOid :: RawOID -> String
 showOid = concatMap (('.':) . show)
 
 oidToByteString :: RawOID -> ByteString
-oidToByteString = Utf8.fromString . showOid
+oidToByteString = BC.pack . showOid
 
 -- I don't know whether (or which of) net-snmp's library functions
 -- account for bytesex; there may be endian bugs lurking here.
@@ -502,7 +502,7 @@ extractIntegral64Type rv constructor = do
 extractIpAddress rv = do
   ptr <- peekVariableValInt rv
   octets <- peekArrayT 4 (castPtr ptr) :: Trouble [Word8]
-  let str = B.intercalate "." (map (B.pack . (:[])) octets)
+  let str = B.intercalate "." (map (BC.pack . show) octets)
   return (IpAddress str octets)
 
 extractOID :: Ptr CVarList -> Trouble ASNValue

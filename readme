@@ -22,4 +22,4 @@ NETSNMP_DISABLE_SNMPV1 or NETSNMP_DISABLE_SNMPV2C.  I'd love to support
 those options, since they may encourage better security, but I won't be able
 to prioritize this in the forseeable future.
 
-Version history - see changes
+Version history - see changes (https://github.com/ptek/netsnmp/blob/master/changes)
