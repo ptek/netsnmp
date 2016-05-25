@@ -1,4 +1,3 @@
-
 {-# LANGUAGE CPP, DoAndIfThenElse, ForeignFunctionInterface, EmptyDataDecls, OverloadedStrings #-}
 
 ----------------------------------------------------------------------
@@ -374,7 +373,16 @@ snmpBulkWalk
   -> Community   -- ^SNMP community (password)
   -> RawOID         -- ^OID to be queried
   -> IO (Either String [SnmpResult])
-snmpBulkWalk hostname community walkoid =
+snmpBulkWalk hostname community walkoid = snmpBulkWalkN hostname community walkoid 30
+   
+snmpBulkWalkN
+  :: Hostname    -- ^IP or hostname of the agent to be queried.  May have
+                 --     prefix of @tcp:@ or suffix of @:port@
+  -> Community   -- ^SNMP community (password)
+  -> RawOID      -- ^OID to be queried
+  -> CLong       -- ^Max Repititons
+  -> IO (Either String [SnmpResult])
+snmpBulkWalkN hostname community walkoid maxReps =
     B.useAsCString hostname  $ \cshost  ->
     B.useAsCString community $ \cscomm  ->
     alloca                   $ \session ->
@@ -385,12 +393,13 @@ snmpBulkWalk hostname community walkoid =
   where
     bulkWalk :: RawOID -> RawOID -> Session -> Trouble [SnmpResult]
     bulkWalk rootoid startoid session = do
-      vals <- filter (\r -> oid r `isSubIdOf` rootoid) <$> mkSnmpBulkGet 0 30 startoid session
+      vals <- filter (\r -> oid r `isSubIdOf` rootoid) <$> mkSnmpBulkGet 0 maxReps startoid session
       case vals of
         [] -> return []
         rs -> (vals ++) <$> bulkWalk rootoid (oid (last rs)) session
     isSubIdOf :: RawOID -> RawOID -> Bool
     isSubIdOf oa ob = ob `isPrefixOf` oa
+
 
 -- getbulk, using session info from a 'data Session' and
 -- the supplied oid
