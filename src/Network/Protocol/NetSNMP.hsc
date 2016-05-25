@@ -21,7 +21,7 @@ module Network.Protocol.NetSNMP (
   -- ** Library Initialization
   initialize,
   -- ** Queries
-  snmpGet, snmpNext, snmpWalk, snmpBulkWalk,
+  snmpGet, snmpNext, snmpWalk, snmpBulkWalk, snmpBulkWalkN,
   -- ** Miscellany
   showASNValue,
   )
