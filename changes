@@ -1,5 +1,16 @@
+0.3.2.4 - 14. November 2016
+  * Throw an error on duplicate OIDs in the bulkGet response
+
+0.3.2.3 - 14. November 2016
+  * Throw an error on duplicate OIDs in the bulkWalk response
+
+0.3.2.2 - 26. April 2016
+  * Export snmpBulkWalkN to be able to control the amount of repetiotions
+    in the SNMP BulkWalk Command. Courtesy of Kyle McKean
+    (https://github.com/mckeankylej)
+
 0.3.2.1 - 11. April 2016
-        * Fix parsing IPs. Issue #4 (https://github.com/ptek/netsnmp/issues/4)
+  * Fix parsing IPs. Issue #4 (https://github.com/ptek/netsnmp/issues/4)
 	  In the prevois code, "0.0.0.0" converts to "\NUL.\NUL.\NUL.\NUL"
 	  Thanks to lievenm (https://github.com/lievenm) for pointing it out.
 	* Remove the dependency on utf8-string. Using ByteString.Char8 instead
