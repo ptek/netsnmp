@@ -367,14 +367,14 @@ snmpWalk version hostname community walkoid =
 -- * snmpBulkWalk \"localhost\" \"public\" [1,3,6,1,2,1,1]
 --
 -- * snmpBulkWalk \"tcp:localhost:5161\" \"mypassword\" [1,3,6,1,2,1,1]
-snmpBulkWalk 
+snmpBulkWalk
   :: Hostname    -- ^IP or hostname of the agent to be queried.  May have
                  --     prefix of @tcp:@ or suffix of @:port@
   -> Community   -- ^SNMP community (password)
   -> RawOID         -- ^OID to be queried
   -> IO (Either String [SnmpResult])
 snmpBulkWalk hostname community walkoid = snmpBulkWalkN hostname community walkoid 30
-   
+
 snmpBulkWalkN
   :: Hostname    -- ^IP or hostname of the agent to be queried.  May have
                  --     prefix of @tcp:@ or suffix of @:port@
@@ -393,12 +393,15 @@ snmpBulkWalkN hostname community walkoid maxReps =
   where
     bulkWalk :: RawOID -> RawOID -> Session -> Trouble [SnmpResult]
     bulkWalk rootoid startoid session = do
-      vals <- filter (\r -> oid r `isSubIdOf` rootoid) <$> mkSnmpBulkGet 0 maxReps startoid session
-      case vals of
+      res <- filter (onlySubIds rootoid) <$> mkSnmpBulkGet 0 maxReps startoid session
+      let resOids = map oid res
+      unless (nub(resOids) == resOids)
+        (throwT "OID does not increase. There is a loop somewhere.")
+      case res of
         [] -> return []
-        rs -> (vals ++) <$> bulkWalk rootoid (oid (last rs)) session
-    isSubIdOf :: RawOID -> RawOID -> Bool
-    isSubIdOf oa ob = ob `isPrefixOf` oa
+        rs -> (res ++) <$> bulkWalk rootoid (oid (last rs)) session
+    onlySubIds :: RawOID -> SnmpResult -> Bool
+    onlySubIds rootoid res = rootoid `isPrefixOf` oid res
 
 
 -- getbulk, using session info from a 'data Session' and
