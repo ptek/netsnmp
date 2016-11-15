@@ -14,7 +14,6 @@ license:              BSD3
 license-file:         license
 author:               Pavlo Kerestey and Humane Software for Global Access Internet Services GmbH
 maintainer:           Pavlo Kerestey <pavlo@kerestey.net>
-stability:            alpha
 build-type:           Simple
 homepage:             https://github.com/ptek/netsnmp
 bug-reports:          https://github.com/ptek/netsnmp/issues
