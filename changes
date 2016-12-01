@@ -1,5 +1,13 @@
+0.3.2.5 - 01. December 2016
+  * Taking out the duplcate checking to mkSnmpBulkGet was a total mistake
+    snmpbulkget reads beyond the needed parts whereas bulkwalk stays within
+    the subtree of the requested OID. Thus snmpbulkget is actually returning
+    duplicate results which is ok. They will be filtered in the bulkWalk
+    part
+    Will deprecate the 0.3.2.4 on hackage.
+
 0.3.2.4 - 14. November 2016
-  * Throw an error on duplicate OIDs in the bulkGet response
+  * Throw an error on duplicate OIDs in the mkSnmpBulkGet response
 
 0.3.2.3 - 14. November 2016
   * Throw an error on duplicate OIDs in the bulkWalk response

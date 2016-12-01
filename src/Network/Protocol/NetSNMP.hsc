@@ -394,9 +394,12 @@ snmpBulkWalkN hostname community walkoid maxReps =
     bulkWalk :: RawOID -> RawOID -> Session -> Trouble [SnmpResult]
     bulkWalk rootoid startoid session = do
       res <- filter (onlySubIds rootoid) <$> mkSnmpBulkGet 0 maxReps startoid session
+      let resOids = map oid res
       case res of
         [] -> return []
-        rs -> (res ++) <$> bulkWalk rootoid (oid (last rs)) session
+        rs -> if (nub resOids == resOids)
+              then (res ++) <$> bulkWalk rootoid (oid (last rs)) session
+              else throwT "OID do not increase. The server responds in a loop."
     onlySubIds :: RawOID -> SnmpResult -> Bool
     onlySubIds rootoid res = rootoid `isPrefixOf` oid res
 
@@ -410,11 +413,7 @@ mkSnmpBulkGet non_repeaters max_repetitions oid' session =
   pdu_req <- buildPDU snmp_msg_getbulk oid' oids version
   pokePDUNonRepeaters pdu_req non_repeaters
   pokePDUMaxRepetitions pdu_req max_repetitions
-  res <- dispatchSnmpReq pdu_req session
-  let resOids = map oid res
-  unless (nub(resOids) == resOids)
-    (throwT "OID do not increase. The server responds in a loop.")
-  return res
+  dispatchSnmpReq pdu_req session
 
 -- get or getnext, using session info from a 'data Session' and
 -- the supplied oid
