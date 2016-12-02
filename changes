@@ -1,15 +1,16 @@
-0.3.2.6
+0.3.2.6 - ***
   * Switched to stack as the main building tool. Please raise an issue if
     you think that its inappropriate for a library.
   * Automate running tests using CircleCI
 
 0.3.2.5 - 01. December 2016
-  * Taking out the duplcate checking to mkSnmpBulkGet was a total mistake
+  * Taking out the loop checking to mkSnmpBulkGet was a total mistake.
     snmpbulkget reads beyond the needed parts whereas bulkwalk stays within
     the subtree of the requested OID. Thus snmpbulkget is actually returning
-    duplicate results which is ok. They will be filtered in the bulkWalk
-    part
-    Will deprecate the 0.3.2.4 on hackage.
+    duplicate results which is ok. Have reverted the change made in 0.3.2.4
+    and the loops will now be checked in the snmpBulkWalkN after making sure
+    that all the OIDs are from the requested subtree.
+    Deprecates 0.3.2.4
 
 0.3.2.4 - 14. November 2016
   * Throw an error on duplicate OIDs in the mkSnmpBulkGet response
