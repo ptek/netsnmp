@@ -1,3 +1,8 @@
+0.3.2.6
+  * Switched to stack as the main building tool. Please raise an issue if
+    you think that its inappropriate for a library.
+  * Automate running tests using CircleCI
+
 0.3.2.5 - 01. December 2016
   * Taking out the duplcate checking to mkSnmpBulkGet was a total mistake
     snmpbulkget reads beyond the needed parts whereas bulkwalk stays within

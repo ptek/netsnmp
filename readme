@@ -18,8 +18,14 @@ unlikely to ever be supported by this package.
   SNMPv2* -- proprietary hybrid variant of v2c and v2p
 
 This binding requires that net-snmp be built without
-NETSNMP_DISABLE_SNMPV1 or NETSNMP_DISABLE_SNMPV2C.  I'd love to support
-those options, since they may encourage better security, but I won't be able
-to prioritize this in the forseeable future.
+NETSNMP_DISABLE_SNMPV1 or NETSNMP_DISABLE_SNMPV2C.  I'd love to
+support those options, since they may encourage better security, but I
+won't be able to prioritize this in the forseeable future.
+
+A word about stability: we have taken over the maintenance of the
+library back when we needed a way to collect SNMP Data at Global
+Access Internet Services GmbH. We use it in production ourselves but I
+would not be as corageous as to claim it to be stable for
+everyone. Hopefully it is useful to someone though.
 
 Version history - see changes (https://github.com/ptek/netsnmp/blob/master/changes)
