@@ -2,7 +2,7 @@ dependencies:
   cache_directories:
     - "~/.stack"
   pre:
-    - sudo apt-get install libsnmp-dev snmpd
+    - sudo apt-get install libsnmp-dev snmpd && sudo /etc/init.d/snmpd stop
     - wget -qO- https://get.haskellstack.org/ | sh
   override:
     - stack setup 7.10.3

@@ -7,10 +7,8 @@ import System.Cmd
 
 tests = test [
    "snmpGet returns correct OID" ~: do
-     o <- bracket_
-            givenSnmpdRunning
-            killSnmpd
-            (snmpGet snmp_version_2c "127.0.0.1:6161" "HSTEST" [1,3,6,1,2,1,1,4,0] >>= either error (return . oid))
+     givenSnmpdRunning
+     o <- (snmpGet snmp_version_2c "127.0.0.1:6161" "HSTEST" [1,3,6,1,2,1,1,4,0] >>= either error (return . oid)) `finally` killSnmpd
      o @?= [1,3,6,1,2,1,1,4,0]
  ]
 
