@@ -9,7 +9,6 @@ syntax: glob
 **\#*
 TAGS
 
-stack.yaml
 .stack-work
 
 .cabal-sandbox
