@@ -2,7 +2,7 @@ name:                 NetSNMP
 version:              0.3.2.5
 synopsis:             Bindings for net-snmp's C API for clients
 description:          Network.Protocol.NetSNMP is a partial binding to the
-                      library portion of the net-snmp package.  It uses the
+                      library portion of the net-snmp package. It uses the
                       'single-session api', which is claimed to be
                       thread-safe.  Not all operations are supported yet;
                       please contact the maintainer if you're in need of
@@ -12,7 +12,7 @@ category:             Network
 cabal-version:        >= 1.8
 license:              BSD3
 license-file:         license
-author:               Pavlo Kerestey and Humane Software for Global Access Internet Services GmbH
+author:               See authors
 maintainer:           Pavlo Kerestey <pavlo@kerestey.net>
 build-type:           Simple
 homepage:             https://github.com/ptek/netsnmp
