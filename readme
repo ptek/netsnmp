@@ -1,3 +1,7 @@
+NOTE: due to limited amount of time, this code is not very well maintained
+Consider using the snmp package instead:
+https://hackage.haskell.org/package/snmp
+
 The (Haskell) NetSNMP package is a binding for a subset of the libsnmp
 api provided by the NetSNMP project.  It is initially being developed
 against NetSNMP version 5.4.1, but probably works with most or all 5.*
