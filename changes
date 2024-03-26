@@ -1,3 +1,10 @@
+0.4.0.0 - 26. March 2024
+  * Add a MonadFail instance of Trouble. Thanks to @arthur-den
+    (https://github.com/arthur-den) for contribution.
+  * P.S. This package could use a new maintainer who is much more connected
+    to the haskell community and ecosystem. Please reach out if you are
+    interested.
+
 0.3.2.6 - ***
   * Switched to stack as the main building tool. Please raise an issue if
     you think that its inappropriate for a library.
@@ -25,11 +32,11 @@
 
 0.3.2.1 - 11. April 2016
   * Fix parsing IPs. Issue #4 (https://github.com/ptek/netsnmp/issues/4)
-	  In the prevois code, "0.0.0.0" converts to "\NUL.\NUL.\NUL.\NUL"
-	  Thanks to lievenm (https://github.com/lievenm) for pointing it out.
-	* Remove the dependency on utf8-string. Using ByteString.Char8 instead
-	  since the oids we were decoding as utf8 before, are number after all
-	  and should not be in UTF8 range anyway
+    In the prevois code, "0.0.0.0" converts to "\NUL.\NUL.\NUL.\NUL"
+    Thanks to lievenm (https://github.com/lievenm) for pointing it out.
+  * Remove the dependency on utf8-string. Using ByteString.Char8 instead
+    since the oids we were decoding as utf8 before, are number after all
+    and should not be in UTF8 range anyway
 
 0.3.2.0 - 19. June 2015
         * Make the library compile with GHC 7.10.1

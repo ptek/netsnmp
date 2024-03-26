@@ -10,6 +10,7 @@ syntax: glob
 TAGS
 
 .stack-work
+stack*.yaml.lock
 
 .cabal-sandbox
 build
@@ -22,4 +23,3 @@ cabal.sandbox.config
 *.chs.h
 
 tmp
-
