@@ -200,7 +200,7 @@ snmp_version_3   = SnmpVersion #{const SNMP_VERSION_3  }
 -- SNMP_MSG_GETNEXT               Yes   Yes   Yes
 -- SNMP_MSG_RESPONSE              Yes   Yes   Yes
 -- SNMP_MSG_SET                   Yes   Yes   Yes
--- SNMP_MSG_TRAP                  Yes    -     - 
+-- SNMP_MSG_TRAP                  Yes    -     -
 -- SNMP_MSG_GETBULK                -    Yes   Yes
 -- SNMP_MSG_INFORM                 -    Yes   Yes
 -- SNMP_MSG_TRAP2                  -    Yes   Yes
@@ -799,7 +799,7 @@ foreign import ccall unsafe "net-snmp/net-snmp-includes.h snmp_error"
       -> Ptr CString -> IO ()
 
 snmpError :: Ptr SnmpSession -> IO String
-snmpError p = 
+snmpError p =
   alloca $ \libp ->     -- pointer to library error code
   alloca $ \sysp ->     -- pointer to system error code
   alloca $ \errp -> do  -- pointer to error CString
@@ -814,7 +814,7 @@ snmpError p =
 
 -- Return library error description
 -- This one is preferred for all single-session api failures except
--- snmp_sess_open failure.  
+-- snmp_sess_open failure.
 -- library/snmp_api.h
 -- void snmp_sess_error(void *, int *, int *, char **);
 -- foreign import ccall unsafe "net-snmp/net-snmp-includes.h snmp_sess_error"
@@ -863,11 +863,14 @@ instance Functor Trouble where
               (Right v) -> return (Right (f v))
 
 instance Monad Trouble where
-  return a = Trouble $ return (Right a)
+  return = pure
   m >>= f  = Trouble $ do
     r <- runTrouble m
     case r of (Left s)  -> return (Left s)
               (Right v) -> runTrouble (f v)
+
+instance MonadFail Trouble where
+  fail = Trouble . pure . Left
 
 throwT :: String -> Trouble a
 throwT s = Trouble $ return (Left s)
